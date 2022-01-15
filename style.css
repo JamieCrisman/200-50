@@ -1,13 +1,13 @@
 @font-face {
   font-family: 'Bodoni Moda Regular';
   src: url('./fonts/BodoniModa-Regular.ttf')  format('truetype');
-  font-display: optional;
+  font-display: swap;
 }
 
 @font-face {
   font-family: 'Bodoni Moda Black';
   src: url('./fonts/BodoniModa-Black.ttf')  format('truetype');
-  font-display: optional;
+  font-display: swap;
 }
 
 /* from https://piccalil.li/blog/a-modern-css-reset/ */
