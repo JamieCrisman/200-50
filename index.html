@@ -1,0 +1,340 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+  <meta charset="UTF-8" />
+  <meta http-equiv="X-UA-Compatible" content="IE=edge,chrome=1" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="theme-color" content="#ffffff" />
+  <link rel="stylesheet" type="text/css" href="/style.css">
+  <title>200/50</title>
+</head>
+
+<body>
+  <nav id="header">
+    <strong>200/50</strong>
+    <a href="/about.html">About</a>
+  </nav>
+  <div id="content" contenteditable="true">
+    click to start
+  </div>
+  <div id="footer">
+    <div>total word count: <span id="totalWordCount">0</span></div>
+    <div>unique word count: <span id="uniqueWordCount">0</span></div>
+    <div>time remaining: <span id="timeRemaining">45:00</span></div>
+    <div>
+      <button id="playButton">play</button>
+      <button id="pauseButton" class="hidden">pause</button>
+      <button id="clearButton">clear</button>
+    </div>
+  </div>
+</body>
+
+<script type="text/javascript">
+  const wordSelection = /[^\s\.!,?"\[\]()]+/gmiu;
+  const STORAGE_KEY_CONTENT = "saved_entry";
+  const STORAGE_KEY_TIME = "saved_time";
+  let canSave = false;
+  let loadedEntry;
+  if (localStorage) {
+    canSave = true;
+  }
+  if (canSave) {
+    loadedEntry = localStorage.getItem(STORAGE_KEY_CONTENT);
+    savedTimeRemaining = localStorage.getItem(STORAGE_KEY_TIME);
+  }
+
+  function debounce(cb, time) {
+    let timeout;
+
+    return function () {
+      clearTimeout(timeout);
+      timeout = setTimeout(cb, time);
+    }
+  }
+
+  function throttle(cb, time) {
+    let throttleTimer;
+    return function () {
+      if (throttleTimer) return;
+      throttleTimer = setTimeout(() => {
+        cb();
+        throttleTimer = false;
+      }, time);
+    };
+  }
+
+  const clock = function (callback, startHook, stopHook, interval) {
+    let expected, timeout;
+    this.interval = interval;
+    this.isRunning = false;
+
+    this.step = () => {
+      const drift = Date.now() - expected;
+      callback();
+      expected += this.interval;
+
+      timeout = setTimeout(this.step, this.interval - drift);
+    }
+
+    this.start = () => {
+      if (this.isRunning) return;
+      startHook();
+      this.isRunning = true;
+      expected = Date.now() + interval;
+      timeout = setTimeout(this.step, this.interval);
+    }
+
+    this.stop = () => {
+      this.isRunning = false;
+      stopHook();
+      clearTimeout(timeout);
+    }
+  }
+
+  let pad = (n, width) => {
+    n = n + '';
+    return n.length >= width ? n : new Array(width - n.length + 1).join('0') + n;
+  }
+
+  let hasStarted = false;
+  let state = {
+    isRunning: false,
+    content: "",
+    totalWordCount: 0,
+    uniqueWordCount: 0,
+    timeRemaining: 0,
+    prevInterval: undefined,
+  };
+  let timer;
+
+  const playButton = document.getElementById("playButton");
+  const pauseButton = document.getElementById("pauseButton");
+  const clearButton = document.getElementById("clearButton");
+  const footerElement = document.getElementById("footer");
+  const totalWordCountElement = document.getElementById("totalWordCount");
+  const uniqueWordCountElement = document.getElementById("uniqueWordCount");
+  const timeRemainingElement = document.getElementById("timeRemaining");
+  const editor = document.getElementById("content");
+
+  const countWords = () => {
+    let text = editor.innerText;
+    text = text.trim();
+    let wordBank = {};
+    let results = text.match(wordSelection);
+    if (!results) {
+      results = [];
+    }
+    for (let i = 0; i < results.length; i++) {
+      let word = results[i].toLowerCase();
+      if (wordBank[word] !== undefined) {
+        wordBank[word] += 1
+      } else {
+        wordBank[word] = 1
+      }
+    }
+    state.totalWordCount = results.length;
+    state.wordBank = wordBank;
+    state.uniqueWordCount = Object.keys(wordBank).length;
+    renderCounts();
+  }
+
+  let renderCounts = function () {
+    totalWordCountElement.innerText = state.totalWordCount;
+    uniqueWordCountElement.innerText = state.uniqueWordCount;
+    if (state.totalWordCount > 200) {
+      totalWordCountElement.setAttribute("class", "red");
+      if (state.isRunning) {
+        footerElement.setAttribute("class", "lessSubtle");
+      }
+    } else if (state.totalWordCount == 200) {
+      totalWordCountElement.setAttribute("class", "green");
+      footerElement.setAttribute("class", "");
+    } else {
+      totalWordCountElement.setAttribute("class", "");
+      if (state.isRunning) {
+        footerElement.setAttribute("class", "beSubtle");
+      }
+    }
+
+    if (state.uniqueWordCount > 50) {
+      uniqueWordCountElement.setAttribute("class", "red");
+      if (state.isRunning) {
+        footerElement.setAttribute("class", "lessSubtle");
+      }
+    } else {
+      uniqueWordCountElement.setAttribute("class", "");
+      if (state.isRunning) {
+        footerElement.setAttribute("class", "beSubtle");
+      }
+    }
+  }
+
+  let renderTime = function () {
+    let tempd = new Date(state.timeRemaining);
+    timeRemainingElement.innerText = pad(tempd.getMinutes(), 2) + ":" + pad(tempd.getSeconds(), 2);
+  }
+
+  if (canSave && loadedEntry) {
+    editor.innerHTML = loadedEntry;
+    countWords();
+    state.timeRemaining = parseInt(savedTimeRemaining, 10);
+    renderTime();
+  }
+
+  // stop the timer, stop editable
+  const PutDownYourPencil = () => {
+    timer.stop();
+    editor.setAttribute("contenteditable", "false");
+  }
+
+  const countDown = () => {
+    // make sure to set prevInterval and timeRemaining before starting the timer
+    let diff = Date.now() - state.prevInterval;
+    state.timeRemaining -= diff;
+    if (state.timeRemaining < 0) {
+      state.timeRemaining = 0;
+      PutDownYourPencil();
+    }
+    state.prevInterval = Date.now();
+    renderTime()
+  };
+
+  const timerStarted = () => {
+    // enable beSubtle
+    if (state.totalWordCount < 200) {
+      footerElement.setAttribute("class", "beSubtle");
+    } else {
+      footerElement.setAttribute("class", "lessSubtle");
+    }
+  }
+
+  const timerStopped = () => {
+    // disable beSubtle
+    footerElement.setAttribute("class", "");
+  }
+
+  timer = new clock(countDown, timerStarted, timerStopped, 1000);
+
+  const FirstRun = () => {
+    editor.innerText = "";
+    state.totalWordCount = 0;
+    state.uniqueWordCount = 0;
+    hasStarted = true;
+    state.isRunning = true;
+    state.prevInterval = Date.now();
+    state.timeRemaining = 45 * 60 * 1000;
+    timer.start();
+    playButton.setAttribute("class", "hidden");
+    pauseButton.setAttribute("class", "");
+  }
+
+  playButton.onclick = (event) => {
+    event.preventDefault();
+    if (canSave && loadedEntry && state.totalWordCount > 0) {
+      editor.setAttribute("contenteditable", "true");
+      hasStarted = true;
+      state.isRunning = true;
+      state.prevInterval = Date.now();
+      playButton.setAttribute("class", "hidden");
+      pauseButton.setAttribute("class", "");
+      timer.start();
+    }
+    if (hasStarted == false) {
+      editor.setAttribute("contenteditable", "true");
+      FirstRun();
+      editor.focus();
+      return
+    }
+    if (!state.isRunning && state.timeRemaining > 0) {
+      state.prevInterval = Date.now();
+      editor.setAttribute("contenteditable", "true");
+      timer.start();
+      editor.focus();
+      state.isRunning = true;
+      playButton.setAttribute("class", "hidden");
+      pauseButton.setAttribute("class", "");
+    }
+  }
+
+  pauseButton.onclick = (event) => {
+    event.preventDefault();
+    if (state.isRunning) {
+      state.isRunning = false;
+      timer.stop();
+      editor.setAttribute("contenteditable", "false");
+      pauseButton.setAttribute("class", "hidden");
+      playButton.setAttribute("class", "");
+    }
+
+  }
+
+  clearButton.onclick = (event) => {
+    event.preventDefault();
+    if (!hasStarted && !(canSave && loadedEntry && state.totalWordCount > 0)) return;
+    let wasRunning = state.isRunning;
+    state.isRunning = false;
+
+    timer.stop();
+    editor.setAttribute("contenteditable", "false");
+    pauseButton.setAttribute("class", "hidden");
+    playButton.setAttribute("class", "");
+    if (confirm("are you sure you want to clear?")) {
+      editor.setAttribute("contenteditable", "false");
+      editor.innerText = "click to start";
+      hasStarted = false;
+      localStorage.setItem(STORAGE_KEY_CONTENT, "");
+      localStorage.setItem(STORAGE_KEY_TIME, state.timeRemaining + "");
+      state.prevInterval = undefined;
+      state.totalWordCount = 0;
+      state.uniqueWordCount = 0;
+      state.timeRemaining = 45 * 60 * 1000;
+      state.isRunning = false;
+      renderCounts();
+      renderTime();
+    } else if (wasRunning) {
+      state.isRunning = true;
+      state.prevInterval = Date.now();
+      editor.setAttribute("contenteditable", "true");
+      playButton.setAttribute("class", "hidden");
+      pauseButton.setAttribute("class", "");
+      timer.start();
+    }
+
+  }
+
+  editor.onclick = (event) => {
+    event.preventDefault();
+    if (canSave && loadedEntry && state.totalWordCount > 0 && state.isRunning == false) {
+      editor.setAttribute("contenteditable", "true");
+      hasStarted = true;
+      state.isRunning = true;
+      state.prevInterval = Date.now();
+      playButton.setAttribute("class", "hidden");
+      pauseButton.setAttribute("class", "");
+      timer.start();
+    }
+    if (hasStarted == false && state.isRunning == false) {
+      editor.setAttribute("contenteditable", "true");
+      FirstRun()
+      editor.focus();
+    }
+  }
+
+  const saveEntry = () => {
+    let html = editor.innerHTML;
+    localStorage.setItem(STORAGE_KEY_CONTENT, html);
+    localStorage.setItem(STORAGE_KEY_TIME, state.timeRemaining + "");
+  }
+
+  let throttledCountWords = throttle(countWords, 200);
+  let deboucedSave = debounce(saveEntry, 500);
+  editor.addEventListener('keyup', () => {
+    throttledCountWords();
+    deboucedSave();
+  });
+
+
+</script>
+
+</html>
