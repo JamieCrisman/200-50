@@ -147,3 +147,10 @@ body {
 .hidden {
   display: none;
 }
+
+blockquote {
+  font-style: italic;
+  border-left: 2px solid #000;
+  padding-left: 0.5em;
+  margin-bottom: 0.5em;
+}
