@@ -7,6 +7,16 @@
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <meta name="theme-color" content="#ffffff" />
   <link rel="stylesheet" type="text/css" href="./style.css">
+  <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png">
+  <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32x32.png">
+  <link rel="icon" type="image/png" sizes="16x16" href="/favicon-16x16.png">
+  <link rel="manifest" href="/site.webmanifest">
+  <link rel="mask-icon" href="/safari-pinned-tab.svg" color="#5bbad5">
+  <meta name="apple-mobile-web-app-title" content="200/50">
+  <meta name="application-name" content="200/50">
+  <meta name="msapplication-TileColor" content="#da532c">
+  <meta property="og:title" content="200/50" />
+  <meta property="og:description" content="A writing exercise from George Saunders." />
   <title>200/50</title>
 </head>
 
@@ -19,14 +29,17 @@
     click to start
   </div>
   <div id="footer">
-    <div>total word count: <span id="totalWordCount">0</span></div>
-    <div>unique word count: <span id="uniqueWordCount">0</span></div>
-    <div>time remaining: <span id="timeRemaining">45:00</span></div>
-    <div>
-      <button id="playButton">start</button>
-      <button id="pauseButton" class="hidden">pause</button>
-      <button id="clearButton">clear</button>
+    <div id="footerStatus">
+      <div>total word count: <span id="totalWordCount">0</span></div>
+      <div>unique word count: <span id="uniqueWordCount">0</span><span id="wordBankButton"></span></div>
+      <div>time remaining: <span id="timeRemaining">45:00</span></div>
+      <div>
+        <button id="playButton">start</button>
+        <button id="pauseButton" class="hidden">pause</button>
+        <button id="clearButton">clear</button>
+      </div>
     </div>
+    <div id="wordBank"></div>
   </div>
 </body>
 
@@ -103,6 +116,8 @@
     content: "",
     totalWordCount: 0,
     uniqueWordCount: 0,
+    showWordBank: false,
+    wordBank: {},
     timeRemaining: 0,
     prevInterval: undefined,
   };
@@ -112,6 +127,8 @@
   const pauseButton = document.getElementById("pauseButton");
   const clearButton = document.getElementById("clearButton");
   const footerElement = document.getElementById("footer");
+  const wordBankButtonElement = document.getElementById("wordBankButton");
+  const wordBankElement = document.getElementById("wordBank");
   const totalWordCountElement = document.getElementById("totalWordCount");
   const uniqueWordCountElement = document.getElementById("uniqueWordCount");
   const timeRemainingElement = document.getElementById("timeRemaining");
@@ -136,6 +153,38 @@
     state.totalWordCount = results.length;
     state.wordBank = wordBank;
     state.uniqueWordCount = Object.keys(wordBank).length;
+    renderCounts();
+  }
+
+  const wordBankToHtml = () => {
+    let temp = [];
+    for (const [k, v] of Object.entries(state.wordBank)) {
+      temp.push({ word: k, count: v });
+    }
+    temp = temp.sort((a, b) => {
+      let diff = a.count - b.count;
+      if (diff == 0) {
+        if (a.word < b.word) {
+          return -1;
+        } else if (a.word == b.word) {
+          return 0
+        } else {
+          return 1;
+        }
+      } else {
+        return diff;
+      }
+    })
+    let output = "<div class=\"table\">";
+    for (let i = 0; i < temp.length; i++) {
+      output += "<div class=\"table-item\">" + temp[i].word + " <span class=\"lessSubtle smaller\">(" + temp[i].count + ")</span></div>";
+    }
+    output += "</div>";
+    return output;
+  }
+
+  const toggleWords = () => {
+    state.showWordBank = !state.showWordBank
     renderCounts();
   }
 
@@ -167,6 +216,21 @@
       if (state.isRunning) {
         footerElement.setAttribute("class", "beSubtle");
       }
+    }
+
+    if (!state.showWordBank && state.uniqueWordCount > 0 && wordBankButtonElement.innerText === "") {
+      wordBankButtonElement.innerHTML = "<button onclick=\"toggleWords()\">show words</button>";
+    }
+    if (state.uniqueWordCount === 0 && wordBankButtonElement.innerText !== "") {
+      wordBankButtonElement.innerHTML = "";
+    }
+    if (state.showWordBank && state.uniqueWordCount > 0) {
+      wordBankButtonElement.innerHTML = "<button onclick=\"toggleWords()\">hide words</button>";
+      wordBankElement.innerHTML = wordBankToHtml();
+    }
+    if (!state.showWordBank) {
+      wordBankButtonElement.innerHTML = "<button onclick=\"toggleWords()\">show words</button>";
+      wordBankElement.innerHTML = "";
     }
   }
 
@@ -290,6 +354,7 @@
       state.uniqueWordCount = 0;
       state.timeRemaining = 45 * 60 * 1000;
       state.isRunning = false;
+      state.showWordBank = false;
       renderCounts();
       renderTime();
     } else if (wasRunning) {
