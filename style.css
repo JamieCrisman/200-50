@@ -48,6 +48,7 @@ body {
   min-height: 100vh;
   text-rendering: optimizelegibility;
   line-height: 1.5;
+  font-size: 20px;
 }
 
 /* A elements that don't have a class get default styles */
@@ -75,7 +76,7 @@ select {
   html:focus-within {
    scroll-behavior: auto;
   }
-  
+
   *,
   *::before,
   *::after {
@@ -98,6 +99,11 @@ body {
 
 #header, #footer, #content {
   padding: 1em;
+}
+
+#header, #content {
+  max-width: 80ch;
+  margin: 0 auto;
 }
 
 #header {
